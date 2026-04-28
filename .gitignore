@@ -1,0 +1,40 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+dist/
+build/
+.venv/
+venv/
+
+# Node
+node_modules/
+dist/
+
+# Output
+output/
+
+# Environment
+.env
+
+# IDE
+.vscode/
+.idea/
+
+# OS
+.DS_Store
+
+# Per-developer Claude Code config (project skills under .claude/skills/ are pushed)
+.claude/settings.local.json
+
+# Source archives — never commit personal data exports
+instagram-*/
+facebook-*/
+tiktok-*/
+twitter-*/
+youtube-*/
+takeout-*/
+linkedin-*/
+threads-*/
+*.zip
+metrics.json

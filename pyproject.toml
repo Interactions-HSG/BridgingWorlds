@@ -1,0 +1,39 @@
+[project]
+name = "bridging-worlds"
+version = "0.1.0"
+description = "End-to-end social media data portability: Instagram GDPR export → RDF → Solid Pod → Bluesky"
+requires-python = ">=3.11"
+dependencies = [
+    "rdflib>=7.0,<8.0",
+    "morph-kgc>=2.8,<3.0",
+    "pydantic>=2.0,<3.0",
+    "click>=8.1,<9.0",
+    "pyyaml>=6.0,<7.0",
+    "python-dotenv>=1.0,<2.0",
+    "rich>=13.0,<14.0",
+    "python-dateutil>=2.8,<3.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.0,<9.0",
+    "pytest-cov>=4.0,<6.0",
+    "ruff>=0.4,<1.0",
+]
+
+[project.scripts]
+bridging = "bridging_worlds.cli:main"
+
+[build-system]
+requires = ["setuptools>=68.0"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+where = ["src/python"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests/python"]
+pythonpath = ["src/python"]
+
+[tool.ruff]
+line-length = 100

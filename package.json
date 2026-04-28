@@ -1,0 +1,31 @@
+{
+  "name": "bridging-worlds",
+  "version": "0.1.0",
+  "description": "Solid Pod storage and cross-platform export for BridgingWorlds pipeline",
+  "type": "module",
+  "scripts": {
+    "build": "tsc",
+    "start": "node dist/index.js",
+    "store": "node dist/index.js store",
+    "export": "node dist/index.js export",
+    "test": "vitest run",
+    "test:watch": "vitest"
+  },
+  "dependencies": {
+    "@inrupt/solid-client": "^2.1.0",
+    "@inrupt/solid-client-authn-node": "^2.1.0",
+    "@atproto/api": "^0.13.0",
+    "n3": "^1.21.0",
+    "commander": "^12.0.0",
+    "dotenv": "^16.4.0",
+    "yaml": "^2.4.0",
+    "mime-types": "^2.1.35"
+  },
+  "devDependencies": {
+    "typescript": "^5.4.0",
+    "vitest": "^2.0.0",
+    "@types/n3": "^1.21.0",
+    "@types/node": "^20.0.0",
+    "@types/mime-types": "^2.1.4"
+  }
+}
