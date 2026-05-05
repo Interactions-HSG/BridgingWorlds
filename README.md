@@ -1,5 +1,7 @@
 # BridgingWorlds
 
+[![SolidSymp26LukaBekavac](SolidSymp26LukaBekavac.png)](SolidSymp26LukaBekavac.pdf)
+
 Take your Instagram data export, convert the public bits to standard RDF, store it in your own [Solid Pod](https://solidproject.org/), and re-publish it to [Bluesky](https://bsky.app). One pipeline, one set of commands.
 
 Reference provider: **Instagram**. Adding TikTok / Facebook / X / YouTube / LinkedIn / Threads / etc. is a structured 3-PR workflow guided by [.claude/skills/add-vlop-provider/SKILL.md](.claude/skills/add-vlop-provider/SKILL.md).
