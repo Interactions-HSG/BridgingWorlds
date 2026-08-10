@@ -44,6 +44,37 @@ def ingest(source, output_dir):
 
 
 @main.command()
+@click.argument("source", type=click.Path(exists=True))
+@click.option("--provider", required=True, help="Provider name, e.g. instagram, tiktok")
+@click.option("--output-dir", default="config/schemas", help="Schema output directory")
+def schema(source, provider, output_dir):
+    """Extract structure-only JSON Schemas from a raw export (deterministic, genson).
+
+    Runs genson over every JSON file in the archive (merging paginated
+    files) and writes value-free schemas to config/schemas/<provider>/.
+    This is the only interface an LLM may use when authoring a mapper for
+    a new provider — the raw data itself is never shown to the model.
+    """
+    from .ingest.schema_extractor import extract_schemas, extract_source
+
+    console.print(f"[bold]Extracting schemas from:[/bold] {source}")
+    export_root = extract_source(source)
+    schemas, skipped = extract_schemas(export_root, Path(output_dir), provider)
+
+    console.print(f"\n[bold green]Schema extraction complete:[/bold green] {len(schemas)} schemas")
+    for key, count in schemas.items():
+        pages = f" ({count} files merged)" if count > 1 else ""
+        console.print(f"  {key}{pages}")
+    if skipped:
+        console.print(f"  [yellow]Skipped {len(skipped)} unparseable files[/yellow]")
+    console.print(f"\nOutput: {Path(output_dir) / provider}/")
+    console.print(
+        "[dim]Schemas contain structure only (no data values) — safe to commit "
+        "and to hand to an LLM for mapper authoring.[/dim]"
+    )
+
+
+@main.command()
 @click.option("--input-dir", default="output/normalized", help="Normalized JSON directory")
 @click.option("--output-dir", default="output/rdf", help="RDF output directory")
 @click.option("--username", required=True, help="Instagram username")

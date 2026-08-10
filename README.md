@@ -142,6 +142,33 @@ Expected: ~one post per second (0.5 s rate-limit cushion + image upload). For 38
 
 **Strong recommendation:** test against a throwaway Bluesky handle first. The exporter has no resume / dedupe — re-running posts everything again.
 
+### Step 10 — Federate to Mastodon via ActivityPods (optional)
+
+[ActivityPods](https://activitypods.org) pods are Solid Pods that natively speak ActivityPub — every pod owner is a Fediverse actor with an inbox/outbox. BridgingWorlds publishes your posts to that actor's outbox, so Mastodon users can follow you and see them. **The data stays hosted on your Solid Pod:** the federated notes reference your photos by their public Pod URLs — nothing is re-uploaded to a Mastodon server.
+
+1. Create a pod at an ActivityPods provider (e.g. https://activitypods.org → "Get a Pod").
+2. Add to `.env`:
+
+```bash
+ACTIVITYPODS_BASE_URL=https://mypod.store
+ACTIVITYPODS_USERNAME=yourname
+ACTIVITYPODS_PASSWORD=your-password
+```
+
+3. Dry-run first — writes one `Create` activity JSON per post to `output/export/activitypods/`, touches nothing remote:
+
+```bash
+node dist/index.js export --target activitypods --source pod --dry-run
+```
+
+4. Set `dry_run: false` under `export.mastodon.activitypods` in [config/default.yaml](config/default.yaml) (just dropping the `--dry-run` flag is not enough — the config default is dry), then federate:
+
+```bash
+node dist/index.js export --target activitypods --source pod
+```
+
+Your posts are now followable at `@yourname@mypod.store` from any Mastodon instance. Same caveat as Bluesky: no resume / dedupe — re-running publishes everything again.
+
 ---
 
 ## Troubleshooting (the gotchas you'll hit)
@@ -173,8 +200,16 @@ node dist/index.js cleanup                                  # delete retired pri
 node dist/index.js export --target bluesky --source local --dry-run
 node dist/index.js export --target bluesky --source pod
 
-# Mastodon / ActivityPub (generates JSON + follow CSV; no live federation)
+# Mastodon — live federation via ActivityPods (data stays on your Solid Pod)
+node dist/index.js export --target activitypods --source pod --dry-run
+node dist/index.js export --target activitypods --source pod
+
+# Mastodon / ActivityPub (static JSON + follow CSV, no federation)
 node dist/index.js export --target mastodon
+
+# Extract structure-only JSON Schemas from a raw export (genson, deterministic —
+# the first step when adding a new provider; contains no data values)
+bridging schema <archive.zip> --provider <name>
 
 # Metrics for the paper
 bridging metrics <archive.zip> --output metrics.json
@@ -192,7 +227,7 @@ Instagram export.zip
         ▼ (Python)  ingest    ─ extract, fix encoding, normalize to JSON
         ▼ (Python)  convert   ─ map to RDF (ActivityStreams 2.0 / SIOC / FOAF / schema.org)
         ▼ (TS)      store     ─ upload Turtle + photos to your Solid Pod
-        ▼ (TS)      export    ─ re-publish from Pod to Bluesky (and ActivityPub/Mastodon)
+        ▼ (TS)      export    ─ re-publish from Pod to Bluesky and to Mastodon via ActivityPods
 ```
 
 | Stage | Code | What it does |
@@ -200,7 +235,7 @@ Instagram export.zip
 | ingest | [src/python/.../ingest/](src/python/bridging_worlds/ingest/) | Parse the export ZIP, fix Instagram's broken UTF-8 encoding, normalize to clean dicts |
 | convert | [src/python/.../convert/](src/python/bridging_worlds/convert/) | Map normalized dicts to AS2/SIOC/FOAF/schema.org RDF Turtle |
 | store | [src/ts/store/](src/ts/store/) | Auth to a Solid Pod, create containers, PUT Turtle + media |
-| export | [src/ts/export/](src/ts/export/) | Read RDF (from disk or Pod), post to Bluesky, generate ActivityPub JSON |
+| export | [src/ts/export/](src/ts/export/) | Read RDF (from disk or Pod), post to Bluesky, federate to Mastodon via ActivityPods |
 
 ## Privacy: public data only
 
@@ -242,8 +277,8 @@ To add TikTok, Facebook, X, YouTube, LinkedIn, Threads, Snapchat, Reddit, or Pin
 
 It's a Claude Code skill — open this repo in Claude Code and say *"add support for the TikTok export"*. Claude auto-loads the skill and walks the work in **three sequential PRs**:
 
-1. **PR 1** — Schema, fixtures, parser. Generate JSON Schema + Pydantic models from a real archive. Write the per-provider extractor and parser.
-2. **PR 2** — Normalizer. Implement `normalize_<type>()` per public content type so the output dicts match the contract that [convert/graph_builder.py](src/python/bridging_worlds/convert/graph_builder.py) already expects.
+1. **PR 1** — Schema, fixtures, parser. `bridging schema` extracts structure-only JSON Schemas from the real archive deterministically (genson — **the model never sees the data, only the schemas**). Pydantic models, extractor, and parser are then written from the schemas alone.
+2. **PR 2** — Normalizer. Implement `normalize_<type>()` per public content type so the output dicts match the contract that [convert/graph_builder.py](src/python/bridging_worlds/convert/graph_builder.py) already expects — again authored from the schemas, not the data.
 3. **PR 3** — Convert + end-to-end test. The (unchanged) RDF builder produces Turtle. Bluesky export dry-runs successfully.
 
 The skill enforces the public-only privacy rule: any new content type needs documented evidence of public visibility on the source platform before a builder is added.
