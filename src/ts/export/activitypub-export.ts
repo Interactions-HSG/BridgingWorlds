@@ -3,7 +3,7 @@
  *
  * Mastodon does NOT support post import, so these objects serve as
  * a demonstration that the RDF data can be expressed in AP format.
- * ActivityPods would be the path for actual Solid↔Fediverse federation.
+ * For actual Solid↔Fediverse federation, use activitypods-exporter.ts.
  *
  * Supports two sources:
  *   - Local: reads .ttl from disk, resolves media to local paths

@@ -27,6 +27,13 @@ export:
   mastodon:
     generate_activitypub: true
     generate_csv: true
+    # Live federation: publish posts to an ActivityPods actor's outbox so
+    # Mastodon users can follow them. Media stays hosted on the Solid Pod.
+    activitypods:
+      base_url: "${ACTIVITYPODS_BASE_URL}"
+      username: "${ACTIVITYPODS_USERNAME}"
+      dry_run: true                 # flip to false to actually federate
+      rate_limit_delay: 1.0         # seconds between outbox POSTs
 
 metrics:
   compute_coverage: true

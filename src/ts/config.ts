@@ -17,6 +17,14 @@ export interface BlueskyConfig {
   maxTextLength: number;
 }
 
+export interface ActivityPodsConfig {
+  baseUrl: string;
+  username: string;
+  password: string;
+  dryRun: boolean;
+  rateLimitDelay: number;
+}
+
 export interface PipelineConfig {
   workingDir: string;
   solid: SolidConfig;
@@ -31,6 +39,7 @@ export interface PipelineConfig {
     mastodon: {
       generateActivitypub: boolean;
       generateCsv: boolean;
+      activitypods: ActivityPodsConfig;
     };
   };
 }
@@ -71,6 +80,7 @@ export function loadConfig(
   const exp = (cfg.export || {}) as Record<string, unknown>;
   const bsky = ((exp.bluesky || {}) as Record<string, unknown>);
   const masto = ((exp.mastodon || {}) as Record<string, unknown>);
+  const apods = ((masto.activitypods || {}) as Record<string, unknown>);
 
   return {
     workingDir: ((cfg.pipeline as Record<string, unknown>)?.working_dir as string) || "./output",
@@ -97,6 +107,13 @@ export function loadConfig(
       mastodon: {
         generateActivitypub: (masto.generate_activitypub as boolean) ?? true,
         generateCsv: (masto.generate_csv as boolean) ?? true,
+        activitypods: {
+          baseUrl: process.env.ACTIVITYPODS_BASE_URL || (apods.base_url as string) || "",
+          username: process.env.ACTIVITYPODS_USERNAME || (apods.username as string) || "",
+          password: process.env.ACTIVITYPODS_PASSWORD || "",
+          dryRun: (apods.dry_run as boolean) ?? true,
+          rateLimitDelay: (apods.rate_limit_delay as number) ?? 1.0,
+        },
       },
     },
   };

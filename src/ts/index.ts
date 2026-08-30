@@ -15,6 +15,7 @@ import {
   PodMediaResolver,
 } from "./export/bluesky-exporter.js";
 import { exportActivityPub } from "./export/activitypub-export.js";
+import { exportToActivityPods } from "./export/activitypods-exporter.js";
 import { exportFollowingCsv } from "./export/csv-exporter.js";
 
 const program = new Command();
@@ -183,7 +184,11 @@ program
     "Data source: 'local' reads .ttl from disk, 'pod' reads from Solid Pod",
     "local"
   )
-  .option("--target <platform>", "Target: bluesky, mastodon, all", "all")
+  .option(
+    "--target <platform>",
+    "Target: bluesky, mastodon (federates via ActivityPods when configured), activitypods, all",
+    "all"
+  )
   .option("--config <path>", "Config file", "config/default.yaml")
   .option("--dry-run", "Don't actually post, just generate JSON")
   .action(async (opts) => {
@@ -191,6 +196,7 @@ program
 
     if (opts.dryRun !== undefined) {
       config.bluesky.dryRun = opts.dryRun;
+      config.export.mastodon.activitypods.dryRun = opts.dryRun;
     }
 
     const source: "local" | "pod" = opts.source === "pod" ? "pod" : "local";
@@ -252,6 +258,33 @@ program
           outputDir: opts.outputDir,
           config: config.bluesky,
           resolver,
+          solidClient: source === "pod" ? solidClient : undefined,
+        });
+      }
+    }
+
+    // ── Mastodon federation via ActivityPods ───────────────────
+    // Publishes Create/Note activities to an ActivityPods actor's
+    // outbox; media stays hosted on the Solid Pod (public URLs).
+    const apods = config.export.mastodon.activitypods;
+    if (
+      target === "activitypods" ||
+      ((target === "mastodon" || target === "all") && apods.baseUrl)
+    ) {
+      console.log("\n=== ActivityPods Federation (Solid Pod → Mastodon) ===");
+      if (!apods.baseUrl || !apods.username) {
+        console.error(
+          "Error: ActivityPods not configured. Set ACTIVITYPODS_BASE_URL, " +
+            "ACTIVITYPODS_USERNAME and ACTIVITYPODS_PASSWORD in .env"
+        );
+      } else {
+        results.activitypods = await exportToActivityPods({
+          rdfDir: opts.rdfDir,
+          outputDir: opts.outputDir,
+          config: apods,
+          podBaseUrl: config.solid.podUrl,
+          containerBase: config.store.containerBase,
+          manifest,
           solidClient: source === "pod" ? solidClient : undefined,
         });
       }

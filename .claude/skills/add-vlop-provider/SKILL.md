@@ -39,6 +39,14 @@ If unsure whether a field qualifies, **default to exclude**. Excluded categories
 
 The reference implementation enforces this rule — see the privacy policy docstring and `convert_all` allowlist in [graph_builder.py](src/python/bridging_worlds/convert/graph_builder.py). Mirror the same allowlist pattern for your provider.
 
+## Data-blindness rule — non-negotiable
+
+The mapper (parser + normalizer) is authored by a model, but the raw archive contains DMs, phone numbers, emails, and location history. **Never open, read, grep, sample, print, or otherwise inspect any file inside the export archive.** The only interface between the archive and the model is the deterministic, structure-only JSON Schema produced by `bridging schema` (genson under the hood — property names and types, never values; dynamic user-content keys are collapsed to `additionalProperties`).
+
+- **Allowed inputs:** `config/schemas/<provider>/*.schema.json`, this skill, the existing reference code under `ingest/`, and synthetic fixtures you author yourself.
+- **Forbidden:** `cat`/`Read`/`grep`/`head` on anything inside the archive; loading archive files from test or debug scripts; echoing parse errors or logs that quote archive content.
+- When something can only be verified against real data (encoding, field semantics, timestamp units, pagination), **give the user a command to run and ask them to report the outcome** (e.g. "does this print your bio with emoji rendered correctly? y/n") — do not run it yourself and read the output.
+
 ## Three-PR workflow
 
 Develop each new provider in **three sequential PRs**. Stop and request review after each.
@@ -47,21 +55,22 @@ Develop each new provider in **three sequential PRs**. Stop and request review a
 
 Goal: prove you can load the raw archive into typed Python without losing data.
 
-1. **Collect a real export** (temporary, gitignored). Drop the archive (zip or directory) into the project root using a `<provider>-<handle>-<date>-<id>/` naming convention, e.g. `tiktok-myhandle-2026-04-28-XXXX/`. Add the directory pattern to [.gitignore](.gitignore) if not already covered.
-2. **Generate a JSON Schema from samples** with `genson` (merge multiple files of the same type to capture optionality):
+1. **Have the user collect a real export** (temporary, gitignored). The archive (zip or directory) goes into the project root using a `<provider>-<handle>-<date>-<id>/` naming convention, e.g. `tiktok-myhandle-2026-04-28-XXXX/`. Add the directory pattern to [.gitignore](.gitignore) if not already covered. You never look inside it — see the data-blindness rule.
+2. **Extract schemas deterministically** — no model sees the data:
    ```bash
-   uvx genson path/to/posts_*.json > config/schemas/<provider>/posts.schema.json
+   bridging schema <archive.zip-or-dir> --provider <provider>
    ```
-3. **Generate Pydantic models** with `datamodel-codegen` into a new module:
+   This runs genson ([ingest/schema_extractor.py](src/python/bridging_worlds/ingest/schema_extractor.py)) over every JSON file in the archive, merges paginated files (`posts_1.json`/`posts_2.json`) to capture optionality, collapses dynamic-key objects to `additionalProperties`, and writes structure-only schemas to `config/schemas/<provider>/`. Commit the schemas — they contain no personal data. Everything you write in this PR and the next is derived from these schemas alone.
+3. **Write Pydantic models from the schemas** (optionally seeded with `datamodel-codegen --input config/schemas/<provider>/... `) into a new module:
    ```
    src/python/bridging_worlds/ingest/<provider>/schema.py
    ```
-   Follow the conventions in [ingest/schema.py](src/python/bridging_worlds/ingest/schema.py): `BaseModel`, `Field(default_factory=...)`, `from __future__ import annotations`, all fields optional with sensible defaults so partial archives don't crash. Hand-edit generated models — don't ship raw codegen.
+   Follow the conventions in [ingest/schema.py](src/python/bridging_worlds/ingest/schema.py): `BaseModel`, `Field(default_factory=...)`, `from __future__ import annotations`, all fields optional with sensible defaults so partial archives don't crash. Model only the public content types from the contract table — a genson schema existing for a private category (messages, likes, searches) is not a reason to model it. Hand-edit generated models — don't ship raw codegen.
 4. **Provider-specific parser** at `src/python/bridging_worlds/ingest/<provider>/parser.py`. Mirror [ingest/parser.py](src/python/bridging_worlds/ingest/parser.py): one `load_<provider>_json(path)` and one `load_all_paginated(dir, prefix)` if the provider paginates.
-   - **Encoding gotchas — research before coding.** Instagram's JSON double-encodes UTF-8 as latin-1 (see `fix_instagram_encoding` in [parser.py:10](src/python/bridging_worlds/ingest/parser.py#L10)). Facebook/Messenger has the same bug. TikTok and X are normally clean UTF-8. Snapchat ships CSV not JSON. **Verify with a real emoji / non-ASCII string from the export** before deciding whether you need an encoding fix.
+   - **Encoding gotchas — research before coding.** Instagram's JSON double-encodes UTF-8 as latin-1 (see `fix_instagram_encoding` in [parser.py:10](src/python/bridging_worlds/ingest/parser.py#L10)). Facebook/Messenger has the same bug. TikTok and X are normally clean UTF-8. Snapchat ships CSV not JSON. **Verification is done by the user, not by you** (data-blindness rule): give them a one-liner that loads one of their files through your parser and prints a non-ASCII string, and ask whether emoji/umlauts render correctly. Decide on the encoding fix from their yes/no answer.
 5. **Extractor** at `src/python/bridging_worlds/ingest/<provider>/extractor.py`. Pattern from [ingest/extractor.py](src/python/bridging_worlds/ingest/extractor.py): accept zip-or-dir, return the export root. Use *provider-specific marker directories* in `_find_export_root` (e.g. TikTok uses `user_data.json` at root; Facebook uses `your_facebook_activity/`, `messages/`, `profile_information/`).
 6. **Refactor existing Instagram code if needed.** If this is the *second* provider being added, move Instagram-specific code from `ingest/parser.py`, `ingest/extractor.py`, `ingest/schema.py`, `ingest/normalizer.py` into `ingest/instagram/` first, in the same PR or as a prep commit. Keep backwards-compatible re-exports in the package `__init__.py` for one release if anything imports them.
-7. **Fixtures** under `tests/fixtures/<provider>/v1/...` mirroring the real archive layout. Validate them against the JSON Schema in a tiny test.
+7. **Fixtures** under `tests/fixtures/<provider>/v1/...` mirroring the real archive layout. Author them **synthetically from the schemas** — invented usernames, captions, timestamps — never copied from the real archive. Validate them against the JSON Schema in a tiny test.
 
 **Out of scope for PR 1:** normalizer logic, RDF, anything downstream.
 
@@ -128,8 +137,10 @@ These are starting hypotheses, not facts. **Confirm structure from a real export
 ## Checklist before opening each PR
 
 **PR 1**
+- [ ] `bridging schema` was run and `config/schemas/<provider>/*.schema.json` are committed
+- [ ] No raw archive file was opened, read, or quoted by the model at any point (data-blindness rule)
 - [ ] `ingest/<provider>/{extractor,parser,schema}.py` exist
-- [ ] Real archive parses without error (manually verified)
+- [ ] Real archive parses without error (verified by the user, outcome reported back)
 - [ ] Encoding/format gotchas documented in module docstring
 - [ ] No archive committed; `.gitignore` updated
 - [ ] Synthetic fixtures + schema-validation test pass
